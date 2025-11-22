@@ -5,6 +5,7 @@ import { io } from 'socket.io-client';
 import { Plus, Layout, Calendar, CheckCircle2, Clock, ListTodo, Trash2 } from 'lucide-react';
 import { format } from 'date-fns';
 
+// ⚠️ REPLACE THIS WITH YOUR ACTUAL RENDER URL (NO TRAILING SLASH)
 const API_URL = "https://syncboard-api.onrender.com";
 const socket = io(API_URL);
 
@@ -14,6 +15,16 @@ function App() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // Defined inside to avoid hosting errors
+    const fetchTasks = () => {
+      axios.get(`${API_URL}/tasks`)
+        .then(res => {
+          setTasks(res.data);
+          setLoading(false);
+        })
+        .catch(err => console.error(err));
+    };
+
     fetchTasks();
     
     socket.on('taskAdded', (newTask) => setTasks((prev) => [newTask, ...prev]));
@@ -30,15 +41,6 @@ function App() {
       socket.off('taskDeleted');
     };
   }, []);
-
-  const fetchTasks = () => {
-    axios.get(`${API_URL}/tasks`)
-      .then(res => {
-        setTasks(res.data);
-        setLoading(false);
-      })
-      .catch(err => console.error(err));
-  };
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -75,7 +77,6 @@ function App() {
 
   return (
     <div className="min-h-screen bg-[#0F172A] text-slate-100 font-sans selection:bg-indigo-500/30">
-      
       <div className="fixed top-0 left-0 w-full h-full overflow-hidden -z-10">
         <div className="absolute top-[-10%] left-[-10%] w-96 h-96 bg-purple-500/20 rounded-full blur-[128px]" />
         <div className="absolute bottom-[-10%] right-[-10%] w-96 h-96 bg-blue-500/20 rounded-full blur-[128px]" />
@@ -91,7 +92,6 @@ function App() {
               SyncBoard
             </h1>
           </div>
-          
           <div className="flex items-center gap-2 px-3 py-1.5 bg-green-500/10 border border-green-500/20 rounded-full">
             <span className="relative flex h-2 w-2">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
@@ -103,11 +103,10 @@ function App() {
       </nav>
 
       <main className="max-w-7xl mx-auto px-6 py-12">
-        
         <div className="mb-12 text-center max-w-2xl mx-auto">
           <h2 className="text-4xl font-bold mb-4 tracking-tight">Manage Projects with Speed</h2>
           <p className="text-slate-400 text-lg">
-            A real-time synchronization engine powered by Socket.io. Drag cards to see updates instantly across all connected clients.
+            A real-time synchronization engine powered by Socket.io. Drag cards to see updates instantly.
           </p>
         </div>
 
@@ -210,7 +209,10 @@ const Column = ({ title, status, tasks, icon, accentColor, handleDelete }) => {
                       <div className="flex justify-between items-start mb-2">
                         <h4 className="font-semibold text-slate-200 pr-4 leading-tight">{task.title}</h4>
                         <button 
-                          onClick={() => handleDelete(task._id)}
+                          onClick={(e) => {
+                            e.stopPropagation(); // PREVENT DRAG START ON DELETE
+                            handleDelete(task._id);
+                          }}
                           className="text-slate-500 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity p-1"
                         >
                           <Trash2 className="w-4 h-4" />
@@ -221,6 +223,7 @@ const Column = ({ title, status, tasks, icon, accentColor, handleDelete }) => {
                         <div className="flex items-center gap-1.5">
                           <Calendar className="w-3.5 h-3.5" />
                           <span>
+                            {/* SAFETY CHECK FOR DATE */}
                             {task.createdAt ? format(new Date(task.createdAt), 'MMM d') : 'Today'}
                           </span>
                         </div>
