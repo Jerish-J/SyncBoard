@@ -6,7 +6,7 @@ import { Plus, Layout, Calendar, CheckCircle2, Clock, ListTodo, Trash2 } from 'l
 import { format } from 'date-fns';
 
 // ⚠️ REPLACE THIS WITH YOUR ACTUAL RENDER URL (NO TRAILING SLASH)
-const API_URL = "https://syncboard-api.onrender.com";
+const API_URL = "https://syncboard-api-jerish.onrender.com";
 const socket = io(API_URL, {
   transports: ['websocket'],
 });
