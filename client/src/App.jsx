@@ -2,10 +2,10 @@ import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 import { io } from 'socket.io-client';
-import { Plus, Layout, Calendar, CheckCircle2, Clock, ListTodo } from 'lucide-react';
+import { Plus, Layout, Calendar, CheckCircle2, Clock, ListTodo, Trash2 } from 'lucide-react';
 import { format } from 'date-fns';
 
-const API_URL = import.meta.env.VITE_API_URL;
+const API_URL = "https://syncboard-api.onrender.com";
 const socket = io(API_URL);
 
 function App() {
@@ -15,13 +15,19 @@ function App() {
 
   useEffect(() => {
     fetchTasks();
+    
     socket.on('taskAdded', (newTask) => setTasks((prev) => [newTask, ...prev]));
     socket.on('taskUpdated', (updatedTask) => {
       setTasks((prev) => prev.map(t => t._id === updatedTask._id ? updatedTask : t));
     });
+    socket.on('taskDeleted', (taskId) => {
+      setTasks((prev) => prev.filter(t => t._id !== taskId));
+    });
+
     return () => {
       socket.off('taskAdded');
       socket.off('taskUpdated');
+      socket.off('taskDeleted');
     };
   }, []);
 
@@ -37,8 +43,13 @@ function App() {
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!title) return;
-    axios.post('http://localhost:5000/tasks', { title, status: "TODO" })
+    axios.post(`${API_URL}/tasks`, { title, status: "TODO" })
       .then(() => setTitle(""))
+      .catch(err => console.error(err));
+  };
+
+  const handleDelete = (id) => {
+    axios.delete(`${API_URL}/tasks/${id}`)
       .catch(err => console.error(err));
   };
 
@@ -47,7 +58,6 @@ function App() {
     const { source, destination, draggableId } = result;
     if (source.droppableId === destination.droppableId) return;
 
-    // Optimistic Update
     const updatedTasks = tasks.map(t => {
       if (t._id === draggableId) {
         return { ...t, status: destination.droppableId };
@@ -56,8 +66,7 @@ function App() {
     });
     setTasks(updatedTasks);
 
-    // API Update
-    axios.put(`http://localhost:5000/tasks/${draggableId}`, {
+    axios.put(`${API_URL}/tasks/${draggableId}`, {
       status: destination.droppableId
     });
   };
@@ -67,13 +76,11 @@ function App() {
   return (
     <div className="min-h-screen bg-[#0F172A] text-slate-100 font-sans selection:bg-indigo-500/30">
       
-      {/* BACKGROUND EFFECTS */}
       <div className="fixed top-0 left-0 w-full h-full overflow-hidden -z-10">
         <div className="absolute top-[-10%] left-[-10%] w-96 h-96 bg-purple-500/20 rounded-full blur-[128px]" />
         <div className="absolute bottom-[-10%] right-[-10%] w-96 h-96 bg-blue-500/20 rounded-full blur-[128px]" />
       </div>
 
-      {/* NAVBAR */}
       <nav className="border-b border-slate-700/50 bg-slate-900/50 backdrop-blur-xl sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -97,7 +104,6 @@ function App() {
 
       <main className="max-w-7xl mx-auto px-6 py-12">
         
-        {/* WELCOME SECTION */}
         <div className="mb-12 text-center max-w-2xl mx-auto">
           <h2 className="text-4xl font-bold mb-4 tracking-tight">Manage Projects with Speed</h2>
           <p className="text-slate-400 text-lg">
@@ -105,7 +111,6 @@ function App() {
           </p>
         </div>
 
-        {/* INPUT AREA */}
         <div className="max-w-2xl mx-auto mb-16 relative group">
           <div className="absolute -inset-1 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-xl blur opacity-25 group-hover:opacity-50 transition duration-1000"></div>
           <form onSubmit={handleSubmit} className="relative flex gap-2 bg-slate-800 p-2 rounded-xl border border-slate-700 shadow-2xl">
@@ -125,7 +130,6 @@ function App() {
           </form>
         </div>
 
-        {/* KANBAN BOARD */}
         {loading ? (
           <div className="text-center text-slate-500 animate-pulse">Loading board data...</div>
         ) : (
@@ -137,6 +141,7 @@ function App() {
                 tasks={getTasksByStatus("TODO")} 
                 icon={<ListTodo className="w-5 h-5 text-slate-400" />}
                 accentColor="bg-slate-500"
+                handleDelete={handleDelete}
               />
               <Column 
                 title="In Progress" 
@@ -144,6 +149,7 @@ function App() {
                 tasks={getTasksByStatus("IN_PROGRESS")} 
                 icon={<Clock className="w-5 h-5 text-amber-400" />}
                 accentColor="bg-amber-500"
+                handleDelete={handleDelete}
               />
               <Column 
                 title="Done" 
@@ -151,6 +157,7 @@ function App() {
                 tasks={getTasksByStatus("DONE")} 
                 icon={<CheckCircle2 className="w-5 h-5 text-emerald-400" />}
                 accentColor="bg-emerald-500"
+                handleDelete={handleDelete}
               />
             </div>
           </DragDropContext>
@@ -160,10 +167,9 @@ function App() {
   );
 }
 
-const Column = ({ title, status, tasks, icon, accentColor }) => {
+const Column = ({ title, status, tasks, icon, accentColor, handleDelete }) => {
   return (
     <div className="flex flex-col h-full">
-      {/* COLUMN HEADER */}
       <div className="flex items-center justify-between mb-4 px-2">
         <div className="flex items-center gap-3">
           <div className="p-2 bg-slate-800/50 rounded-lg border border-slate-700">
@@ -176,7 +182,6 @@ const Column = ({ title, status, tasks, icon, accentColor }) => {
         </div>
       </div>
       
-      {/* DROPPABLE AREA */}
       <div className="flex-1 bg-slate-900/50 border border-slate-800/50 rounded-2xl p-4 backdrop-blur-sm">
         <Droppable droppableId={status}>
           {(provided, snapshot) => (
@@ -200,10 +205,17 @@ const Column = ({ title, status, tasks, icon, accentColor }) => {
                         ${snapshot.isDragging ? 'rotate-2 scale-105 shadow-xl ring-2 ring-indigo-500 z-50' : ''}
                       `}
                     >
-                      {/* Priority Stripe */}
                       <div className={`absolute left-0 top-3 bottom-3 w-1 rounded-r-full ${accentColor} opacity-0 group-hover:opacity-100 transition-opacity`} />
                       
-                      <h4 className="font-semibold text-slate-200 mb-2 pr-4">{task.title}</h4>
+                      <div className="flex justify-between items-start mb-2">
+                        <h4 className="font-semibold text-slate-200 pr-4 leading-tight">{task.title}</h4>
+                        <button 
+                          onClick={() => handleDelete(task._id)}
+                          className="text-slate-500 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity p-1"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
                       
                       <div className="flex items-center justify-between text-xs text-slate-500 mt-3">
                         <div className="flex items-center gap-1.5">
