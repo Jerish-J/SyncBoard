@@ -5,43 +5,48 @@ const http = require('http');
 const { Server } = require('socket.io');
 require('dotenv').config();
 
+// Import Model
 const Task = require('./models/Task');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
 
+// CORS: Allow Localhost and Vercel
 const allowedOrigin = process.env.CLIENT_URL || "http://localhost:5173";
 
 const server = http.createServer(app);
 
 const io = new Server(server, {
   cors: {
-    origin: "*",
-    methods: ["GET", "POST", "PUT"]
+    origin: "*", // Allow connections from anywhere (Safest for now)
+    methods: ["GET", "POST", "PUT", "DELETE"]
   }
 });
 
 app.use(cors({
-  origin: "*",
-  methods: ["GET", "POST", "PUT", "DELETE"]
+  origin: "*", // Allow connections from anywhere
 }));
 
 app.use(express.json());
 
-// Database Connection
+// Database
 mongoose.connect(process.env.MONGO_URI)
   .then(() => console.log('✅ MongoDB Connected Successfully'))
   .catch((err) => console.error('❌ MongoDB Connection Error:', err));
 
-// Socket.io Events
+// Socket
 io.on('connection', (socket) => {
   console.log(`⚡ Client connected: ${socket.id}`);
-  socket.on('disconnect', () => console.log(`🔥 Client disconnected: ${socket.id}`));
+  socket.on('disconnect', () => console.log('🔥 Client disconnected'));
 });
 
 // --- ROUTES ---
-app.get('/', (req, res) => res.send('SyncBoard API is Live!'));
 
+app.get('/', (req, res) => {
+  res.send('SyncBoard API is Live!');
+});
+
+// 1. GET Tasks
 app.get('/tasks', async (req, res) => {
   try {
     const tasks = await Task.find().sort({ createdAt: -1 });
@@ -49,27 +54,42 @@ app.get('/tasks', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// 2. POST Task
 app.post('/tasks', async (req, res) => {
   try {
-    const { title, description } = req.body;
-    const newTask = new Task({ title, description });
+    const { title } = req.body;
+    const newTask = new Task({ title, status: "TODO" });
     const savedTask = await newTask.save();
     io.emit('taskAdded', savedTask);
     res.json(savedTask);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// 3. UPDATE Task (Drag & Drop)
 app.put('/tasks/:id', async (req, res) => {
   try {
     const { status } = req.body;
-    const { id } = req.params;
-    const updatedTask = await Task.findByIdAndUpdate(id, { status }, { new: true });
+    const updatedTask = await Task.findByIdAndUpdate(
+      req.params.id,
+      { status }, 
+      { new: true }
+    );
     io.emit('taskUpdated', updatedTask);
     res.json(updatedTask);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// 4. DELETE Task (The New Code)
+app.delete('/tasks/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    await Task.findByIdAndDelete(id);
+    io.emit('taskDeleted', id); // Notify clients
+    res.json({ message: "Deleted" });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Start Server
 server.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
-  console.log(`🛡️  Allowed Origin: ${allowedOrigin}`);
 });

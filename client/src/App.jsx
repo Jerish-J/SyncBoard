@@ -7,7 +7,9 @@ import { format } from 'date-fns';
 
 // ⚠️ REPLACE THIS WITH YOUR ACTUAL RENDER URL (NO TRAILING SLASH)
 const API_URL = "https://syncboard-api.onrender.com";
-const socket = io(API_URL);
+const socket = io(API_URL, {
+  transports: ['websocket'],
+});
 
 function App() {
   const [tasks, setTasks] = useState([]);
