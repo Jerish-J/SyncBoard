@@ -5,26 +5,25 @@ const http = require('http');
 const { Server } = require('socket.io');
 require('dotenv').config();
 
-// Import Model
 const Task = require('./models/Task');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// CORS: Allow Localhost and Vercel
-const allowedOrigin = process.env.CLIENT_URL || "http://localhost:5173";
+app.use(cors());
+app.options('*', cors());
 
 const server = http.createServer(app);
 
 const io = new Server(server, {
   cors: {
-    origin: "*", // Allow connections from anywhere (Safest for now)
+    origin: "*",
     methods: ["GET", "POST", "PUT", "DELETE"]
   }
 });
 
 app.use(cors({
-  origin: "*", // Allow connections from anywhere
+  origin: "*",
 }));
 
 app.use(express.json());
